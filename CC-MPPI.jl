@@ -9,8 +9,8 @@ include("utils.jl")
 # --------[Define Variables]-----------
 x_dim = 4
 u_dim = 2
-N = 15
-dt = 0.02
+N = 3
+dt = 0.1
 
 # MPPI Hyperparams
 lambda = 1
@@ -21,15 +21,13 @@ sigma_control = zeros(Float64, u_dim, u_dim)
 sigma_control[1, 1] = 0.49
 sigma_control[2, 2] = 0.12
 sigma_xf = Matrix{Float64}(I, x_dim, x_dim)
-sigma_xf[2,2] = 0.01
+sigma_xf[2,2] = 0.0001
 
-# En = zeros(Float64, (x_dim, (N+1)*x_dim))
-# En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
-En = zeros(Float64, (x_dim, (N)*x_dim))
-En[:,(N-1)*x_dim+1:(N)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
+En = zeros(Float64, (x_dim, (N+1)*x_dim))
+En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
 Q = Matrix{Float64}(I, x_dim, x_dim)
 R = Matrix{Float64}(I, u_dim, u_dim)*0.1
-Q_bar = zeros(Float64, ((N)*x_dim, (N)*x_dim))
+Q_bar = zeros(Float64, ((N+1)*x_dim, (N+1)*x_dim))
 R_bar = zeros(Float64, (N*u_dim, N*u_dim))
 sigma_control_bar = zeros(Float64, (N*u_dim, N*u_dim))
 for k in 1:N
@@ -37,7 +35,7 @@ for k in 1:N
     R_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = R
     sigma_control_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = sigma_control
 end
-Q_bar[(N-1)*x_dim + 1:N*x_dim , (N-1)*x_dim + 1:N*x_dim] = Q
+Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q
 
 function main()
     # set inital reference trajectory
@@ -60,8 +58,8 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    # anim = @animate for i in 1:200
-    anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
+    anim = @animate for i in 1:1
+    # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         for k in 1:N
             X_ref[k+1,:] = BicycleModelDynamics(X_ref[k,:], U_ref[k,:])
@@ -86,7 +84,7 @@ function main()
                 end
                 Um[k, :] += eps[:, k]
                 xk = BicycleModelDynamics(xk, Um[k,:]) #update state
-                yk = A[(k-1)*x_dim + 1:k*x_dim , (k-1)*x_dim + 1:k*x_dim] * yk + B[(k-1)*x_dim + 1:k*x_dim , (k-1)*u_dim + 1:k*u_dim] * eps[:, k]
+                yk = A[k,:,:] * yk + B[k,:,:] * eps[:, k]
                 Sm = Sm + cost(xk, Um[k, :], obs_info, obs_info2, eps, R)
             end
             Sm = Sm + terminal_cost(xk, X_ref[1, 1])

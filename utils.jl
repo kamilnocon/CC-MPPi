@@ -44,30 +44,36 @@ function optimal_control(Sm_list, Um_list, lambda, M)
 end
 
 function CovarianceControl(x_ref, u_ref)
-    A = zeros(Float64, (N*x_dim, N*x_dim))
-    B = zeros(Float64, (N*x_dim, N*u_dim))
-    d = zeros(Float64, (N, x_dim))
-    C = zeros(Float64, (N*x_dim, N*x_dim))
+    A = zeros(Float64, (N, x_dim, x_dim))
+    B = zeros(Float64, (N, x_dim, u_dim))
 
     for k in 1:N
         local Ak = ForwardDiff.jacobian((x) -> BicycleModelDynamics(x, u_ref[k,:]), x_ref[k,:])
         local Bk = ForwardDiff.jacobian((u) -> BicycleModelDynamics(x_ref[k,:], u), u_ref[k,:])
-        local dk = x_ref[k+1,:] - Ak * x_ref[k,:] - Bk * u_ref[k,:]
-        A[(k-1)*x_dim + 1:k*x_dim , (k-1)*x_dim + 1:k*x_dim] = Ak
-        B[(k-1)*x_dim + 1:k*x_dim , (k-1)*u_dim + 1:k*u_dim] = Bk
-        C[(k-1)*x_dim + 1:k*x_dim , (k-1)*x_dim + 1:k*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
-        d[k, :] = dk
+        A[k,:,:] = Ak
+        B[k,:,:] = Bk
     end
 
-    model = Model(Ipopt.Optimizer)
+    Beta = zeros(Float64, ((N+1)*x_dim, (N)*u_dim))
+    for k in 1:N
+        for j in 1:k
+            local Bk1k0 = B[j,:,:]
+            for z in j:k
+                Bk1k0 = A[z,:,:] * Bk1k0
+            end
+            Beta[k*x_dim+1:(k+1)*x_dim, (j-1)*u_dim+1:(j)*u_dim] = Bk1k0
+        end
+    end
+    print(Beta)
+    # model = Model(Ipopt.Optimizer)
     # model = Model(Mosek.Optimizer)
     # model = Model(COPT.ConeOptimizer)
-    # model = Model(SCS.Optimizer)
-    set_silent(model)
-    @variable(model, K[1:N*u_dim, 1:N*x_dim])
+    model = Model(SCS.Optimizer)
+    # set_silent(model)
+    @variable(model, K[1:N*u_dim, 1:(N+1)*x_dim])
     # @constraint(model, En *(I+B*K)*B*sigma_control_bar*B'*(I+B*K)'*En' .<= sigma_xf)
-    @constraint(model, [sigma_xf En*(I+B*K)*B*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*B'*(I+B*K)'*En' I] in PSDCone())
-    obj = tr(((I + B*K)' * Q_bar * (I + B*K) + K'R_bar*K)*B*sigma_control_bar*B')
+    @constraint(model, [sigma_xf En*(I+Beta*K)*Beta*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*Beta'*(I+Beta*K)'*En' I] in PSDCone())
+    obj = tr(((I + Beta*K)' * Q_bar * (I + Beta*K) + K'R_bar*K)*Beta*sigma_control_bar*Beta')
     @objective(model, Min, obj)
     optimize!(model)
 
