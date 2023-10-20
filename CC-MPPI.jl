@@ -1,6 +1,7 @@
 using Plots
 using LinearAlgebra
 using Distributions
+using Statistics
 include("parameters.jl")
 include("VehicleModels.jl")
 include("utils.jl")
@@ -9,7 +10,7 @@ include("utils.jl")
 x_dim = 4
 u_dim = 2
 N = 15
-dt = 0.01
+dt = 0.02
 
 # MPPI Hyperparams
 lambda = 1
@@ -17,9 +18,10 @@ M = 1024
 mu = zeros(Float64, u_dim)
 
 sigma_control = zeros(Float64, u_dim, u_dim)
-sigma_control[1, 1] = 0.49 * 5
-sigma_control[2, 2] = 0.12 * 5
-sigma_xf = Matrix{Float64}(I, x_dim, x_dim)*0.001
+sigma_control[1, 1] = 0.49
+sigma_control[2, 2] = 0.12
+sigma_xf = Matrix{Float64}(I, x_dim, x_dim)
+sigma_xf[2,2] = 0.01
 
 # En = zeros(Float64, (x_dim, (N+1)*x_dim))
 # En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
@@ -58,12 +60,12 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:50
+    # anim = @animate for i in 1:200
+    anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         for k in 1:N
             X_ref[k+1,:] = BicycleModelDynamics(X_ref[k,:], U_ref[k,:])
         end
-        # println(X_ref[1,:])
         print(i)
         i+=1
 
@@ -102,21 +104,29 @@ function main()
 
         # plot test
         p = plot(size = [4000, 2000])
+        # X_f_m = zeros(Float64, M, x_dim)
         for m in 1:M
-            X_m = X_ref
+            X_m = copy(X_ref)
             for k in 1:N
                 X_m[k+1,:] = BicycleModelDynamics(X_m[k,:], Um_list[m,k,:])'
             end
-            plot!(X_m[:,1], X_m[:,2], legend = false, ylims=(-5,5), xlims=(-10,10))
-            phi = range(0, stop = 2*pi, length = 100)
-            x_obs = obs_info[1] .+ cos.(phi)
-            y_obs = obs_info[2] .+ sin.(phi)
-            plot!(x_obs, y_obs, line = (7, :black))
-            x_obs2 = obs_info2[1] .+ cos.(phi)
-            y_obs2 = obs_info2[2] .+ sin.(phi)
-            plot!(x_obs2, y_obs2, line = (7, :black))
-            plot!(X_log[:,1], X_log[:,2], line = (7, :green))
+            # X_f_m[m,:] = X_m[N,:]
+            plot!(X_m[:,1], X_m[:,2], line = (1, :grey), legend = false, ylims=(-5,5), xlims=(-10,10))
         end
+        X_best = copy(X_ref)
+        for k in 1:N
+            X_best[k+1,:] = BicycleModelDynamics(X_best[k,:], V[k,:])'
+        end
+        plot!(X_best[:,1], X_best[:,2], line = (5, :green))
+        phi = range(0, stop = 2*pi, length = 100)
+        x_obs = obs_info[1] .+ cos.(phi)
+        y_obs = obs_info[2] .+ sin.(phi)
+        plot!(x_obs, y_obs, line = (7, :black))
+        x_obs2 = obs_info2[1] .+ cos.(phi)
+        y_obs2 = obs_info2[2] .+ sin.(phi)
+        plot!(x_obs2, y_obs2, line = (7, :black))
+        plot!(X_log[:,1], X_log[:,2], line = (7, :red))
+        # println(round.(Statistics.cov(X_f_m, dims=1), digits=4))
     end
     gif(anim, "test.gif", fps = 10)
 end

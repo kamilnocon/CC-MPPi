@@ -1,6 +1,10 @@
 using LinearAlgebra
 using JuMP
 using Ipopt
+using Mosek
+using MosekTools
+using COPT
+using SCS
 using ForwardDiff
 
 function cost(x0, u0, obs_info, obs_info2, eps, R)
@@ -56,10 +60,13 @@ function CovarianceControl(x_ref, u_ref)
     end
 
     model = Model(Ipopt.Optimizer)
-    set_silent(model)
     # model = Model(Mosek.Optimizer)
+    # model = Model(COPT.ConeOptimizer)
+    # model = Model(SCS.Optimizer)
+    set_silent(model)
     @variable(model, K[1:N*u_dim, 1:N*x_dim])
-    @constraint(model, En *(I+B*K)*B*sigma_control_bar*B'*(I+B*K)'*En' .<= sigma_xf)
+    # @constraint(model, En *(I+B*K)*B*sigma_control_bar*B'*(I+B*K)'*En' .<= sigma_xf)
+    @constraint(model, [sigma_xf En*(I+B*K)*B*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*B'*(I+B*K)'*En' I] in PSDCone())
     obj = tr(((I + B*K)' * Q_bar * (I + B*K) + K'R_bar*K)*B*sigma_control_bar*B')
     @objective(model, Min, obj)
     optimize!(model)
