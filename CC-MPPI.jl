@@ -13,7 +13,7 @@ N = 5
 dt = 0.1
 
 # MPPI Hyperparams
-lambda = 100
+lambda = 1
 M = 1024
 mu = zeros(Float64, u_dim)
 
@@ -21,13 +21,25 @@ sigma_control = zeros(Float64, u_dim, u_dim)
 sigma_control[1, 1] = 0.49
 sigma_control[2, 2] = 0.12
 sigma_xf = Matrix{Float64}(I, x_dim, x_dim)
-#sigma_xf[2,2] = 0.0001
+sigma_xf[1,1] = 0.001;
+sigma_xf[2,2] = 0.001;
+sigma_xf[3,3] = 0.001;
+sigma_xf[4,4] = 0.001;
 
 En = zeros(Float64, (x_dim, (N+1)*x_dim))
 En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
-Q = Matrix{Float64}(I, x_dim, x_dim)
-R = Matrix{Float64}(I, u_dim, u_dim)*0.1
+#Q = Matrix{Float64}(0.01I, x_dim, x_dim)
+Q = zeros(Float64, x_dim, x_dim)
+R = Matrix{Float64}(0.01I, u_dim, u_dim)
 Q_bar = zeros(Float64, ((N+1)*x_dim, (N+1)*x_dim))
+Q_f = zeros(Float64, x_dim, x_dim)
+#=
+Q_f[1,1] = 0.01;
+Q_f[2,2] = 0.01;
+Q_f[3,3] = 0.001;
+Q_f[4,4] = 0.001;
+=#
+
 R_bar = zeros(Float64, (N*u_dim, N*u_dim))
 sigma_control_bar = zeros(Float64, (N*u_dim, N*u_dim))
 for k in 1:N
@@ -35,7 +47,7 @@ for k in 1:N
     R_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = R
     sigma_control_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = sigma_control
 end
-Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q
+Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q_f
 
 function main()
     # set inital reference trajectory
@@ -58,7 +70,7 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:50
+    anim = @animate for i in 1:40
     # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         

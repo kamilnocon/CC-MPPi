@@ -18,6 +18,7 @@ function cost(x0, u0, obs_info, obs_info2, eps, R)
     if sqrt((x0[1]-obs_info2[1])^2+(x0[2]-obs_info2[2])^2) < obs_info2[3]
         state_cost +=  10.0*712.5
     end
+    
     if ((x0[3] < -2*pi) | (x0[3] > 2*pi))
         state_cost += 15000.0;
     end
@@ -30,6 +31,7 @@ function cost(x0, u0, obs_info, obs_info2, eps, R)
     if ((x0[4] < 2) | (x0[4] > 10))
         state_cost += 15000.0;
     end
+    
     sampling_cost = (transpose(u0)*R*eps)[1] + (1/2)*(transpose(u0)*R*u0)[1]
     rollout_cost = state_cost + sampling_cost
     return rollout_cost
@@ -77,14 +79,16 @@ function CovarianceControl(x_ref, u_ref)
         end
     end
     print(Beta)
-    #model = Model(Ipopt.Optimizer)
+    model = Model(Ipopt.Optimizer)
+    #set_optimizer_attribute(model, "max_iter", 10)
+    #model = Model(Gurobi.Optimizer)
     # model = Model(Mosek.Optimizer)
-    # model = Model(COPT.ConeOptimizer)
-    model = Model(SCS.Optimizer)
+    #model = Model(COPT.ConeOptimizer)
+    #model = Model(SCS.Optimizer)
     # set_silent(model)
     @variable(model, K[1:N*u_dim, 1:(N+1)*x_dim])
-    #@constraint(model, En *(I+Beta*K)*Beta*sigma_control_bar*Beta'*(I+Beta*K)'*En' .<= sigma_xf)
-    @constraint(model, [sigma_xf En*(I+Beta*K)*Beta*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*Beta'*(I+Beta*K)'*En' I] in PSDCone())
+    @constraint(model, En *(I+Beta*K)*Beta*sigma_control_bar*Beta'*(I+Beta*K)'*En' .== sigma_xf)
+    #@constraint(model, [sigma_xf En*(I+Beta*K)*Beta*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*Beta'*(I+Beta*K)'*En' I] in PSDCone())
     obj = tr(((I + Beta*K)' * Q_bar * (I + Beta*K) + K'R_bar*K)*Beta*sigma_control_bar*Beta')
     @objective(model, Min, obj)
     optimize!(model)

@@ -9,8 +9,8 @@ include("utils.jl")
 # --------[Define Variables]-----------
 x_dim = 4
 u_dim = 2
-N = 10
-dt = 0.05
+N = 5
+dt = 0.1
 
 # MPPI Hyperparams
 lambda = 100
@@ -26,7 +26,7 @@ sigma_xf[2,2] = 0.0001
 En = zeros(Float64, (x_dim, (N+1)*x_dim))
 En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
 Q = Matrix{Float64}(I, x_dim, x_dim)
-R = Matrix{Float64}(I, u_dim, u_dim)*0.1
+R = Matrix{Float64}(0.01I, u_dim, u_dim)
 Q_bar = zeros(Float64, ((N+1)*x_dim, (N+1)*x_dim))
 R_bar = zeros(Float64, (N*u_dim, N*u_dim))
 sigma_control_bar = zeros(Float64, (N*u_dim, N*u_dim))
@@ -58,7 +58,7 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:200
+    anim = @animate for i in 1:40
     # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         #=
