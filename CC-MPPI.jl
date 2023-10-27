@@ -2,6 +2,7 @@ using Plots
 using LinearAlgebra
 using Distributions
 using Statistics
+using DelimitedFiles
 include("parameters.jl")
 include("VehicleModels.jl")
 include("utils.jl")
@@ -9,7 +10,7 @@ include("utils.jl")
 # --------[Define Variables]-----------
 x_dim = 4
 u_dim = 2
-N = 3
+N = 7
 dt = 0.1
 
 # MPPI Hyperparams
@@ -18,10 +19,9 @@ M = 1024
 mu = zeros(Float64, u_dim)
 
 sigma_control = zeros(Float64, u_dim, u_dim)
-sigma_control[1, 1] = 0.49
-sigma_control[2, 2] = 0.12
-sigma_xf = Matrix{Float64}(I, x_dim, x_dim)
-sigma_xf[2,2] = 0.0001
+sigma_control[1, 1] = 0.49*2
+sigma_control[2, 2] = 0.12*2
+sigma_xf = Matrix{Float64}(I, x_dim, x_dim)*0.001
 
 En = zeros(Float64, (x_dim, (N+1)*x_dim))
 En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
@@ -58,7 +58,7 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:1
+    anim = @animate for i in 1:30
     # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         for k in 1:N
@@ -76,7 +76,7 @@ function main()
             yk = zeros(Float64, x_dim)
             xk = X_ref[1,:]
             for k in 1:N
-                Kk = K[(k-1)*u_dim + 1:k*u_dim , (k-1)*x_dim + 1:k*x_dim]
+                Kk = K[(k-1)*u_dim + 1:k*u_dim , (k)*x_dim + 1:(k+1)*x_dim]
                 if m < (1-0.2)*M
                     Um[k, :] += Kk * yk
                 else
@@ -85,12 +85,14 @@ function main()
                 Um[k, :] += eps[:, k]
                 xk = BicycleModelDynamics(xk, Um[k,:]) #update state
                 yk = A[k,:,:] * yk + B[k,:,:] * eps[:, k]
-                Sm = Sm + cost(xk, Um[k, :], obs_info, obs_info2, eps, R)
+                Sm += cost(xk, Um[k, :], obs_info, obs_info2, eps, R)
             end
-            Sm = Sm + terminal_cost(xk, X_ref[1, 1])
+            Sm += terminal_cost(xk, X_ref[1, 1])
             Sm_list[m] = Sm
             Um_list[m, :, :] = Um
         end
+
+        X_best = copy(X_ref)
 
         #Calculate Optimal Control
         V = optimal_control(Sm_list, Um_list, lambda, M)
@@ -102,16 +104,15 @@ function main()
 
         # plot test
         p = plot(size = [4000, 2000])
-        # X_f_m = zeros(Float64, M, x_dim)
+        X_f_m = zeros(Float64, M, x_dim)
         for m in 1:M
             X_m = copy(X_ref)
             for k in 1:N
                 X_m[k+1,:] = BicycleModelDynamics(X_m[k,:], Um_list[m,k,:])'
             end
-            # X_f_m[m,:] = X_m[N,:]
+            X_f_m[m,:] = X_m[N,:]
             plot!(X_m[:,1], X_m[:,2], line = (1, :grey), legend = false, ylims=(-5,5), xlims=(-10,10))
         end
-        X_best = copy(X_ref)
         for k in 1:N
             X_best[k+1,:] = BicycleModelDynamics(X_best[k,:], V[k,:])'
         end
