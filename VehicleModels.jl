@@ -1,3 +1,5 @@
+using Interpolations
+using DifferentialEquations
 function BicycleModelDynamics(x, u)
     L_f = 1.0
     L_r = 1.0
@@ -30,4 +32,27 @@ function DiscreteKinematicBycicle(x_t, u_t)
     f(v) = exp(A*v)
     Bd = quadgk(f, 0, dt)[1] * B
     return Ad*x_t + Bd*u_t
+end
+
+function ExecuteCommands(x0, u0, dt)
+    la = 1.0
+    lb = 1.0
+    tspan = (0.0, dt)
+    f = (dx, x, p, t) -> begin
+    psi = x0[3]
+    v = x0[4]
+
+    sa = u0[2]
+    a = u0[1]
+    #sa = 0.3
+    #a = 2.0
+    dx[1] = (v*cos(psi + (atan(la/(la+lb)*tan(sa)))))   # X position
+    dx[2] = (v*sin(psi + (atan(la/(la+lb)*tan(sa)))))   # Y position
+    dx[3] = (v*cos(atan(la/(la+lb)*tan(sa)))/(la+lb)*tan(sa))      # Yaw Angle
+    dx[4] = (a)
+    end
+    prob = ODEProblem(f, x0, tspan)
+    sol = solve(prob, Tsit5())
+    #println(sol.u)
+    return sol.u[end]
 end
