@@ -21,7 +21,7 @@ mu = zeros(Float64, u_dim)
 sigma_control = zeros(Float64, u_dim, u_dim)
 sigma_control[1, 1] = 0.49*2
 sigma_control[2, 2] = 0.12*2
-sigma_xf = Matrix{Float64}(I, x_dim, x_dim)*0.001
+sigma_xf = Matrix{Float64}(I, x_dim, x_dim)
 
 En = zeros(Float64, (x_dim, (N+1)*x_dim))
 En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
@@ -58,8 +58,8 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:30
-    # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
+    # anim = @animate for i in 1:30
+    anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
         # roll out dynamics
         for k in 1:N
             X_ref[k+1,:] = BicycleModelDynamics(X_ref[k,:], U_ref[k,:])
@@ -78,7 +78,7 @@ function main()
             for k in 1:N
                 Kk = K[(k-1)*u_dim + 1:k*u_dim , (k)*x_dim + 1:(k+1)*x_dim]
                 if m < (1-0.2)*M
-                    Um[k, :] += Kk * yk
+                    # Um[k, :] += Kk * yk
                 else
                     Um[k, :] = zeros(Float64, u_dim)
                 end
