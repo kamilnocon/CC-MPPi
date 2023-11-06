@@ -8,7 +8,7 @@ include("VehicleModels.jl")
 include("utils.jl")
 
 # --------[Define Variables]-----------
-x_dim = 4
+x_dim = 5
 u_dim = 2
 N = 10
 dt = 0.1
@@ -20,19 +20,26 @@ M = 1024
 mu = zeros(Float64, u_dim)
 
 sigma_control = zeros(Float64, u_dim, u_dim)
-sigma_control[1, 1] = 0.49
-sigma_control[2, 2] = 0.12
+sigma_control[1, 1] = 0.49*3
+sigma_control[2, 2] = 0.12*3
 sigma_xf = Matrix{Float64}(0.01I, x_dim, x_dim)
 
-sigma_xf[1, 1] = 0.01
+#=
+sigma_xf[1, 1] = 1
 sigma_xf[2, 2] = 0.01
-sigma_xf[3, 3] = 10
-sigma_xf[4, 4] = 10
-
+sigma_xf[3, 3] = 1
+sigma_xf[4, 4] = 1
+sigma_xf[5, 5] = 1
+=#
 
 En = zeros(Float64, (x_dim, (N+1)*x_dim))
 En[:,N*x_dim+1:(N+1)*x_dim] = Matrix{Float64}(I, x_dim, x_dim)
-#Q = Matrix{Float64}(I, x_dim, x_dim)
+# Q = Matrix{Float64}(I, x_dim, x_dim)
+# Q[1, 1] = 0.5
+# Q[2, 2] = 0.01
+# Q[3, 3] = 0.05
+# Q[4, 4] = 0.05
+# Q[5, 5] = 0.01
 Q = zeros(Float64, x_dim, x_dim)
 R = Matrix{Float64}(I, u_dim, u_dim)*0.001
 Q_bar = zeros(Float64, ((N+1)*x_dim, (N+1)*x_dim))
@@ -43,12 +50,12 @@ for k in 1:N
     R_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = R
     sigma_control_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = sigma_control
 end
-Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q
+Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q#Matrix{Float64}(10I, x_dim, x_dim)
 
 function main()
     # set inital reference trajectory
     X_ref = zeros(Float64, N+1, x_dim)
-    X_ref[1,:] = [-10.0, 0.0, 0.0, 5.0]
+    X_ref[1,:] = [-10.0, 0.0, 0.0, 5.0, 0.0]
     U_ref = zeros(Float64, N, u_dim)
 
     X_log = zeros(Float64, 1, x_dim)
@@ -60,14 +67,14 @@ function main()
 
     # Set goals and obstacles
     goal = [10.0, 0.0]
-    obs_info = [-7.5, 0.0, 0.75]
-    obs_info2 = [4.0, 0.0, 0.75]
+    obs_info = [-2.0, 1.25, 2.0]
+    obs_info2 = [2.0, -1.25, 2.0]
 
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:10
-    # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
+    anim = @animate for i in 0:30
+    #anim = @animate while abs(X_ref[1,1]-goal[1]) > 0.5
         # roll out dynamics
         for k in 1:N
             X_ref[k+1,:] = BicycleModelDynamics(X_ref[k,:], U_ref[k,:])
@@ -86,7 +93,7 @@ function main()
             xk = X_ref[1,:]
             for k in 1:N
                 Kk = K[(k-1)*u_dim + 1:k*u_dim , (k)*x_dim + 1:(k+1)*x_dim]
-                if m < (1)*M
+                if m < (1-0.2)*M
                     Um[k, :] += Kk * yk
                 else
                     Um[k, :] = zeros(Float64, u_dim)
@@ -98,7 +105,7 @@ function main()
                 yk = A[k,:,:] * yk + B[k,:,:] * eps[:, k]
                 Sm += cost(xk, Um[k, :], obs_info, obs_info2, eps, R)
             end
-            Sm += terminal_cost(xk, X_ref[1, 1])
+            #Sm += terminal_cost(xk, X_ref[1, 1])
             Sm_list[m] = Sm
             Um_list[m, :, :] = Um
         end
@@ -113,7 +120,12 @@ function main()
         X_log = vcat(X_log, X_ref[1,:]')
         U_ref[1:N-1,:] = V[2:N,:]
         U_ref[N, :] = V[N, :]
-
+        #=
+        if X_ref[1, 1] > -8.0
+            obs_info = [-3.5, 0.0, 0.75]
+        end
+        =#
+        println(X_ref[1,:])
         # plot test
         p = plot(size = [4000, 2000])
         X_f_m = zeros(Float64, M, x_dim)
@@ -135,8 +147,8 @@ function main()
         x_obs = obs_info[1] .+ obs_info[3]*cos.(phi)
         y_obs = obs_info[2] .+ obs_info[3]*sin.(phi)
         plot!(x_obs, y_obs, line = (7, :black))
-        x_obs2 = obs_info2[1] .+ obs_info[3]*cos.(phi)
-        y_obs2 = obs_info2[2] .+ obs_info[3]*sin.(phi)
+        x_obs2 = obs_info2[1] .+ obs_info2[3]*cos.(phi)
+        y_obs2 = obs_info2[2] .+ obs_info2[3]*sin.(phi)
         plot!(x_obs2, y_obs2, line = (7, :black))
         plot!(X_log[:,1], X_log[:,2], line = (7, :red))
         # println(round.(Statistics.cov(X_f_m, dims=1), digits=4))

@@ -8,7 +8,7 @@ include("VehicleModels.jl")
 include("utils.jl")
 
 # --------[Define Variables]-----------
-x_dim = 4
+x_dim = 5
 u_dim = 2
 N = 10
 dt = 0.1
@@ -16,12 +16,12 @@ nu = 1000
 
 # MPPI Hyperparams
 lambda = 1500
-M = 1024
+M = 128
 mu = zeros(Float64, u_dim)
 
 sigma_control = zeros(Float64, u_dim, u_dim)
-sigma_control[1, 1] = 0.49
-sigma_control[2, 2] = 0.12
+sigma_control[1, 1] = 0.49*3
+sigma_control[2, 2] = 0.12*3
 sigma_xf = Matrix{Float64}(0.01I, x_dim, x_dim)
 #=
 sigma_xf[1, 1] = 0.1
@@ -48,7 +48,7 @@ Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q
 function main()
     # set inital reference trajectory
     X_ref = zeros(Float64, N+1, x_dim)
-    X_ref[1,:] = [-10.0, 0.0, 0.0, 5.0]
+    X_ref[1,:] = [-10.0, 0.0, 0.0, 5.0, 0.0]
     U_ref = zeros(Float64, N, u_dim)
 
     X_log = zeros(Float64, 1, x_dim)
@@ -60,8 +60,8 @@ function main()
 
     # Set goals and obstacles
     goal = [10.0, 0.0]
-    obs_info = [-7.5, 0.0, 0.75]
-    obs_info2 = [4.0, 0.0, 0.75]
+    obs_info = [-2.0, 1.25, 2.0]
+    obs_info2 = [2.0, -1.25, 2.0]
 
     # while task not complete
     i = 0
@@ -111,10 +111,15 @@ function main()
         #Execute Command
         #X_ref[1,:] = BicycleModelDynamics(X_ref[1,:], V[1,:])'
         X_ref[1,:] = ExecuteCommands(X_ref[1,:], V[1,:], dt)'
+        println(X_ref[1,:])
         X_log = vcat(X_log, X_ref[1,:]')
         U_ref[1:N-1,:] = V[2:N,:]
         U_ref[N, :] = V[N, :]
-
+        #=
+        if X_ref[1, 1] > -10.0
+            obs_info = [-7.4, 0.0, 1.0]
+        end
+        =#
         # plot test
         p = plot(size = [4000, 2000])
         X_f_m = zeros(Float64, M, x_dim)

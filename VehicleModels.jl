@@ -3,12 +3,13 @@ using DifferentialEquations
 function BicycleModelDynamics(x, u)
     L_f = 1.0
     L_r = 1.0
-    beta = atan(L_r / (L_r + L_f) * tan(u[2]))
+    beta = atan(L_r / (L_r + L_f) * tan(x[5]))
     
     dx = [x[4] * cos(x[3] + beta),
             x[4] * sin(x[3] + beta),
             x[4] / L_r * sin(beta),
             u[1],
+            u[2]
     ]
     return x + dx*dt
 end
@@ -42,14 +43,16 @@ function ExecuteCommands(x0, u0, dt)
     psi = x0[3]
     v = x0[4]
 
-    sa = u0[2]
+    sa = x0[5]
     a = u0[1]
+    sr = u0[2]
     #sa = 0.3
     #a = 2.0
     dx[1] = (v*cos(psi + (atan(la/(la+lb)*tan(sa)))))   # X position
     dx[2] = (v*sin(psi + (atan(la/(la+lb)*tan(sa)))))   # Y position
     dx[3] = (v*cos(atan(la/(la+lb)*tan(sa)))/(la+lb)*tan(sa))      # Yaw Angle
     dx[4] = (a)
+    dx[5] = (sr)
     end
     prob = ODEProblem(f, x0, tspan)
     sol = solve(prob, Tsit5())
