@@ -32,7 +32,7 @@ function DiscreteKinematicBycicle(x_t, u_t)
     Ad = exp(A*dt)
     f(v) = exp(A*v)
     Bd = quadgk(f, 0, dt)[1] * B
-    return Ad*x_t + Bd*u_t
+    return Ad*x_t + Bd*u_t + (x_t+KinematicBicycle(x_t, u_t)*dt - Ad*x_t - Bd*u_t)
 end
 
 function ExecuteCommands(x0, u0, dt)
