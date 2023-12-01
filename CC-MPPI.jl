@@ -46,14 +46,7 @@ Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = Q
 # OPTIMIZATION MODEL
 opt_model = Model(SCS.Optimizer)
 set_optimizer_attribute(opt_model, "max_iters", 1000)
-@variable(opt_model, K[1:N*u_dim, 1:(N+1)*x_dim])  
-for i in 1:N
-    for j in 1:N+1
-        if (i+1 < j) | (i+1 > j)
-            @constraint(opt_model, K[(i-1)*u_dim+1:i*u_dim, (j-1)*x_dim+1:j*x_dim] .== 0.0) # make not diagonals = 0
-        end
-    end
-end
+@variable(opt_model, K_var[1:u_dim, 1:x_dim, 1:N])
 
 
 function main()
@@ -73,15 +66,15 @@ function main()
     # while task not complete
     i = 0
     # while abs(X_ref[1,1]-goal[1]) > 1
-    anim = @animate for i in 1:30
+    anim = @animate for i in 1:10
     # anim = @animate while abs(X_ref[1,1]-goal[1]) > 1
+        println(i)
+        i+=1
         # roll out dynamics
         for k in 1:N
             X_ref[k+1,:] = BicycleModelDynamics(X_ref[k,:], U_ref[k,:])
         end
-        print(i)
-        i+=1
-
+        
         A, B, K = CovarianceControl(X_ref, U_ref, opt_model)
 
         for m in 1:M
@@ -94,7 +87,7 @@ function main()
             for k in 1:N
                 Kk = K[(k-1)*u_dim + 1:k*u_dim , (k)*x_dim + 1:(k+1)*x_dim]
                 if m < (1)*M
-                    # Um[k, :] += Kk * yk
+                    Um[k, :] += Kk * yk
                 else
                     Um[k, :] = zeros(Float64, u_dim)
                 end

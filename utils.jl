@@ -117,16 +117,28 @@ function optimal_control(Sm_list, Um_list, lambda, M)
     return V
 end
 
+function transfrom_K_var(K_var)
+    if eltype(K_var) == VariableRef
+        K = zeros(AffExpr, N*u_dim, (N+1)*x_dim)
+    elseif eltype(K_var) == Float64
+        K = zeros(Float64, N*u_dim, (N+1)*x_dim)
+    end
+    for i in 1:N
+        for j in 1:N+1
+            if (i+1 == j)
+                K[(i-1)*u_dim+1:i*u_dim, (j-1)*x_dim+1:j*x_dim] = K_var[:,:,i]
+            end
+        end
+    end
+    return K
+end
+
 function CovarianceControl(x_ref, u_ref, opt_model)
     A = zeros(Float64, (N, x_dim, x_dim))
     B = zeros(Float64, (N, x_dim, u_dim))
+
+    println("linearizing dyamics and quadraticizing cost")
     for k in 1:N
-        # local Ak = ForwardDiff.jacobian((x) -> KinematicBicycle(x, u_ref[k,:]), x_ref[k,:])
-        # local Bk = ForwardDiff.jacobian((u) -> KinematicBicycle(x_ref[k,:], u), u_ref[k,:])
-        # A[k,:,:] = exp(Ak*dt)
-        # f(v) = exp(Ak*v)
-        # B[k,:,:] = quadgk(f, 0, dt)[1] * Bk
-        
         local Ak = ForwardDiff.jacobian((x) -> BicycleModelDynamics(x, u_ref[k,:]), x_ref[k,:])
         local Bk = ForwardDiff.jacobian((u) -> BicycleModelDynamics(x_ref[k,:], u), u_ref[k,:])
         A[k,:,:] = Ak
@@ -135,11 +147,12 @@ function CovarianceControl(x_ref, u_ref, opt_model)
         local Qk = ForwardDiff.hessian((x) -> state_cost(x, u_ref[k,:]), x_ref[k,:])
         local Rk = ForwardDiff.hessian((u) -> state_cost(x_ref[k,:], u), u_ref[k,:])
         for k in 1:N
-            Q_bar[(k-1)*x_dim + 1:k*x_dim , (k-1)*x_dim + 1:k*x_dim] = Qk * 0.0001
-            R_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = Rk * 0.0001
+            Q_bar[(k-1)*x_dim + 1:k*x_dim , (k-1)*x_dim + 1:k*x_dim] = Qk # * 0.0001
+            R_bar[(k-1)*u_dim + 1:k*u_dim , (k-1)*u_dim + 1:k*u_dim] = Rk # * 0.0001
         end
     end
     Q_bar[N*x_dim + 1:(N+1)*x_dim , N*x_dim + 1:(N+1)*x_dim] = ForwardDiff.hessian((x) -> terminal_cost(x, x_ref[1,1]), x_ref[N+1,:]) 
+    println("done")
 
     Beta = zeros(Float64, ((N+1)*x_dim, (N)*u_dim))
     for k in 1:N
@@ -151,21 +164,25 @@ function CovarianceControl(x_ref, u_ref, opt_model)
             Beta[k*x_dim+1:(k+1)*x_dim, (j-1)*u_dim+1:(j)*u_dim] = Bk1k0
         end
     end
+
+    K = transfrom_K_var(K_var)
+
     #set_silent(model)
-    
-    #@constraint(model, En*(I+Beta*K)*Beta*sigma_control_bar*Beta'*(I+Beta*K)'*En' .<= sigma_xf)
-    #@constraint(model, [sigma_xf En*(I+Beta*K)*Beta*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*Beta'*(I+Beta*K)'*En' I] in PSDCone())
+    println("setting constraint")
     @constraint(opt_model, [sigma_xf En*(I+Beta*K)*Beta*sqrt(sigma_control_bar); sqrt(sigma_control_bar)*Beta'*(I+Beta*K)'*En' I] >= 0, PSDCone())
-    obj = tr(((I + Beta*K)' * Q_bar * (I + Beta*K) + K'R_bar*K)*Beta*sigma_control_bar*Beta')
+    println("done")
+    println("computing obj")
+    obj = tr(((I + Beta*K)' * Q_bar * (I + Beta*K) + K'*R_bar*K)*Beta*sigma_control_bar*Beta')
+    println("done")
+    println("setting obj")
     @objective(opt_model, Min, obj)
+    print("done")
+
     optimize!(opt_model)
-    for i in 1:N
-        for j in 1:N+1
-            if (i+1 < j) | (i+1 > j)
-                value.(K)[(i-1)*u_dim+1:i*u_dim, (j-1)*x_dim+1:j*x_dim] .= 0
-            end
-        end
-    end
-    writedlm("K.csv", value.(K), ',')
-    return A, B, value.(K)
+
+    K_soln = transfrom_K_var(value.(K_var))
+
+    writedlm("K.csv", K_soln, ',')
+
+    return A, B, K_soln
 end
